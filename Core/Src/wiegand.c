@@ -189,18 +189,23 @@ static uint32_t canpybara_wiegand_strip_parity_bits(uint32_t input)
 
 void canpybara_wiegand_zone_response(uint8_t response)
 {
-	if(response == 0)
-	{
-		LOG("Opening");
-		HAL_GPIO_WritePin(WIEGAND_RELAY_PORT, WIEGAND_RELAY_PIN, GPIO_PIN_SET);
-	}
-	else
-	{
-		LOG("Reject");
-		HAL_GPIO_WritePin(WIEGAND_BUZZER_PORT, WIEGAND_BUZZER_PIN, GPIO_PIN_SET);
-	}
+    if(response == 0)
+    {
+        LOG("Opening");
+        HAL_GPIO_WritePin(WIEGAND_RELAY_PORT, WIEGAND_RELAY_PIN, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(WIEGAND_STATUS_PORT, WIEGAND_STATUS_PIN, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(WIEGAND_BUZZER_PORT, WIEGAND_BUZZER_PIN, GPIO_PIN_RESET);
+    }
+    else
+    {
+        LOG("Reject");
+        HAL_GPIO_WritePin(WIEGAND_RELAY_PORT, WIEGAND_RELAY_PIN, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(WIEGAND_STATUS_PORT, WIEGAND_STATUS_PIN, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(WIEGAND_BUZZER_PORT, WIEGAND_BUZZER_PIN, GPIO_PIN_SET);
+    }
 
-	HAL_TIM_Base_Start_IT(&htim3);
+    __HAL_TIM_SET_COUNTER(&htim3, 0);
+    HAL_TIM_Base_Start_IT(&htim3);
 }
 
 void canpybara_wiegand_zone_timeout(void)
@@ -209,6 +214,7 @@ void canpybara_wiegand_zone_timeout(void)
 
     HAL_TIM_Base_Stop_IT(&htim3);
 
-	HAL_GPIO_WritePin(WIEGAND_RELAY_PORT, WIEGAND_RELAY_PIN, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(WIEGAND_BUZZER_PORT, WIEGAND_BUZZER_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(WIEGAND_RELAY_PORT, WIEGAND_RELAY_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(WIEGAND_STATUS_PORT, WIEGAND_STATUS_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(WIEGAND_BUZZER_PORT, WIEGAND_BUZZER_PIN, GPIO_PIN_RESET);
 }
