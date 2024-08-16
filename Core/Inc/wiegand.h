@@ -14,6 +14,9 @@
 #define WIEGAND_BUZZER_PORT OUT0_GPIO_Port
 #define WIEGAND_BUZZER_PIN OUT0_Pin
 
+#define WIEGAND_STATUS_PORT OUT1_GPIO_Port
+#define WIEGAND_STATUS_PIN OUT1_Pin
+
 #define WIEGAND_ENABLED 
 
 void canpybara_wiegand_reset(void);
