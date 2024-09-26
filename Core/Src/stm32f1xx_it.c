@@ -392,7 +392,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   // Periodic CAN reports
   if(htim == &htim1)
   {
+    #ifdef WIEGAND_ENABLED
+    #warning Wiegand enabled: GPIO periodic report will be disabled
+    #else
     canpybara_gpio_report();
+    #endif
   }
   
   // Debounce filter
