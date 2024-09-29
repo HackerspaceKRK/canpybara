@@ -205,6 +205,7 @@ void canpybara_wiegand_zone_response(uint8_t response)
     }
 
     __HAL_TIM_SET_COUNTER(&htim3, 0);
+    __HAL_TIM_CLEAR_FLAG(&htim3, TIM_FLAG_UPDATE);
     HAL_TIM_Base_Start_IT(&htim3);
 }
 
