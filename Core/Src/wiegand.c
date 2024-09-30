@@ -7,10 +7,11 @@
 extern TIM_HandleTypeDef htim3;
 
 uint8_t canpybara_wiegand_is_valid(void);
-static uint32_t canpybara_wiegand_strip_parity_bits(uint32_t input);
 
 uint32_t wiegand_position;
+uint8_t wiegand_start_bit;
 uint32_t wiegand_buffer;
+uint8_t wiegand_end_bit;
 uint32_t wiegand_timeout;
 
 void canpybara_wiegand_reset(void)
@@ -29,7 +30,7 @@ uint32_t uint32_reverse(uint32_t x)
     return x;
 }
 
-void canpybara_wiegand_process_card(void)
+void canpybara_wiegand_process_short_card(void)
 {
 	static CanTxMsgTypeDef can_tx;
 	can_tx.StdId = CANPYBARA_REPORT_SCAN;
@@ -47,6 +48,31 @@ void canpybara_wiegand_process_card(void)
 	can_tx.Data[i++] = wiegand_buffer >> 8;
 
 	canpybara_can_tx(&can_tx);
+}
+
+void canpybara_wiegand_process_long_card(void)
+{
+    static CanTxMsgTypeDef can_tx;
+    can_tx.StdId = CANPYBARA_REPORT_SCAN;
+    can_tx.ExtId = 0;
+    can_tx.IDE = CAN_ID_STD;
+    can_tx.RTR = CAN_RTR_DATA;
+
+    can_tx.DLC = 4;
+    int i = 0;
+
+    wiegand_buffer = uint32_reverse(wiegand_buffer);
+
+//    can_tx.Data[i++] = wiegand_buffer >> 16;
+//    can_tx.Data[i++] = wiegand_buffer >> 8;
+//    can_tx.Data[i++] = wiegand_buffer;
+
+    can_tx.Data[i++] = wiegand_buffer;
+    can_tx.Data[i++] = wiegand_buffer >> 8;
+    can_tx.Data[i++] = wiegand_buffer >> 16;
+    can_tx.Data[i++] = wiegand_buffer >> 24;
+
+    canpybara_can_tx(&can_tx);
 }
 
 void canpybara_wiegand_process_keypress(void)
@@ -74,21 +100,21 @@ void canpybara_wiegand_process_scan(void)
 {
 	LOG("Buff: %"PRIu32", len: %"PRIu32, wiegand_buffer, wiegand_position);
 
-	// Check if makes sense
+	// Check if it makes sense
 	if(!canpybara_wiegand_is_valid())
 	{
-		LOG("Bad wiegand checksum");
+		LOG("Bad wiegand checksum %d %d %d", wiegand_buffer, wiegand_start_bit, wiegand_end_bit);
 		return;
 	}
 
-	// Strip parity bits and fix bit order
-	wiegand_buffer = canpybara_wiegand_strip_parity_bits(wiegand_buffer);
-
 	switch(wiegand_position)
 	{
-		case WIEGAND_CARD_LENGTH:
-			canpybara_wiegand_process_card();
+		case WIEGAND_LONG_CARD_LENGTH:
+			canpybara_wiegand_process_long_card();
 			break;
+        case WIEGAND_SHORT_CARD_LENGTH:
+            canpybara_wiegand_process_short_card();
+            break;
 		case WIEGAND_KEYPRESS_LENGTH:
 			canpybara_wiegand_process_keypress();
 			break;
@@ -104,7 +130,17 @@ void canpybara_wiegand_pin_pulse_interrupt(int bit)
 		return;
 	}
 
-	wiegand_buffer |= bit << wiegand_position;
+    if (wiegand_position == 0) {
+        // save first parity bit
+        wiegand_start_bit = bit;
+    } else {
+        if (wiegand_position > 1) {
+            // roll over 2nd parity bit to buffer
+            wiegand_buffer |= wiegand_end_bit << (wiegand_position - 2);
+        }
+        // save (new) 2nd parity bit
+        wiegand_end_bit = bit;
+    }
 	wiegand_position ++;
 
 	wiegand_timeout = 0;
@@ -159,31 +195,23 @@ uint8_t canpybara_wiegand_is_valid(void)
 	uint8_t bitstream_length = wiegand_position - 2; // length of data bits (len-2 parity bits)
 	uint8_t bitstream_length_2 = bitstream_length/2;
 
-	parity_calc = canpybara_wiegand_parity_calc(wiegand_buffer, 0, bitstream_length_2+1);
+	parity_calc = canpybara_wiegand_parity_calc(wiegand_buffer, 0, bitstream_length_2);
 
-	if(parity_calc != 0)
+	if(parity_calc != wiegand_start_bit)
 	{
+        LOG("Bad wiegand checksum start");
 		return 0;
 	}
 
-	parity_calc = canpybara_wiegand_parity_calc(wiegand_buffer, bitstream_length_2+1, bitstream_length_2+1);
+	parity_calc = canpybara_wiegand_parity_calc(wiegand_buffer, bitstream_length_2, bitstream_length_2);
 
-	if(parity_calc != 1)
+	if(parity_calc == wiegand_end_bit)
 	{
+        LOG("Bad wiegand checksum end");
 		return 0;
 	}
 
 	return 1;
-}
-
-/**
- * This quite magic function will shift 1 bit to right and zero-out
- * last bit in message (removes parity bits from message)
- */
-static uint32_t canpybara_wiegand_strip_parity_bits(uint32_t input)
-{
-	uint32_t mask = (~(1<<(wiegand_position-1)));
-	return (wiegand_buffer & mask)>>1;
 }
 
 
